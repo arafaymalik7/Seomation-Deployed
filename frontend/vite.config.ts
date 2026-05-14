@@ -9,26 +9,5 @@ export default defineConfig({
     alias: {
       '@': path.resolve(__dirname, './src')
     }
-  },
-  build: {
-    rollupOptions: {
-      output: {
-        manualChunks(id) {
-          if (!id.includes('node_modules')) {
-            return undefined;
-          }
-          if (id.includes('react') || id.includes('scheduler')) {
-            return 'react-vendor';
-          }
-          if (id.includes('recharts')) {
-            return 'charts-vendor';
-          }
-          if (id.includes('axios') || id.includes('zod') || id.includes('dayjs')) {
-            return 'app-vendor';
-          }
-          return 'vendor';
-        }
-      }
-    }
   }
 });
