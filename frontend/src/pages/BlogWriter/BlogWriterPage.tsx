@@ -19,6 +19,7 @@ import { LANGUAGE_OPTIONS } from '@/utils/constants';
 import { CONTENT_PROMPT_MAX_LENGTH, IMAGE_PROMPT_MAX_LENGTH, LINKEDIN_POST_MAX_LENGTH } from '@/utils/inputLimits';
 import { IMAGE_STYLE_OPTIONS, normalizeImageStyle, type ImageStylePreset } from '@/utils/imageStyles';
 import { getTextSurfaceProps } from '@/utils/languagePresentation';
+import { isPublishingPlatformEnabled } from '@/config/features';
 import {
   formatScheduledDateTime,
   formatDateTimeLocalMin,
@@ -46,11 +47,15 @@ type ImageAiMeta = {
   isPlaceholder?: boolean;
 };
 
-const platformOptions: { label: string; value: IntegrationPlatform }[] = [
+const allPlatformOptions: { label: string; value: IntegrationPlatform }[] = [
   { label: 'WordPress', value: 'WORDPRESS' },
   { label: 'LinkedIn', value: 'LINKEDIN' },
   { label: 'Instagram', value: 'INSTAGRAM' }
 ];
+
+const platformOptions = allPlatformOptions.filter((option) =>
+  isPublishingPlatformEnabled(option.value)
+);
 
 function getTimestamp() {
   return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -345,10 +350,18 @@ export function BlogWriterPage() {
   const loadIntegrations = async () => {
     try {
       const { data } = await IntegrationsAPI.list();
-      setIntegrations(data.items);
-      if (data.items.length) {
-        setSelectedIntegrationId((prev) => prev || data.items[0].id);
-        setSelectedPlatform((prev) => prev || data.items[0].platform);
+      const enabledItems = data.items.filter((item) => isPublishingPlatformEnabled(item.platform));
+      setIntegrations(enabledItems);
+      if (enabledItems.length) {
+        setSelectedIntegrationId((prev) =>
+          enabledItems.some((item) => item.id === prev) ? prev : enabledItems[0].id
+        );
+        setSelectedPlatform((prev) =>
+          isPublishingPlatformEnabled(prev) ? prev : enabledItems[0].platform
+        );
+      } else {
+        setSelectedIntegrationId('');
+        setSelectedPlatform('WORDPRESS');
       }
     } catch (err) {
       console.warn('Failed to load integrations:', err);

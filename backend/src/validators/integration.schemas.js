@@ -17,6 +17,7 @@ export const integrationCallbackSchema = z.object({
     token: z.string().min(1).optional(),
     state: z.string().optional(),
     error: z.string().optional(),
+    error_description: z.string().optional(),
     expires_in: z.coerce.number().optional(),
     refreshToken: z.string().optional(),
     metadata: z.record(z.any()).optional()

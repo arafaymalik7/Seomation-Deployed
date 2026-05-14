@@ -25,6 +25,11 @@ function parseOriginList(value) {
     .filter(Boolean);
 }
 
+function parseBoolean(value, fallback = false) {
+  if (value == null || value === '') return fallback;
+  return ['1', 'true', 'yes', 'on', 'enabled'].includes(String(value).trim().toLowerCase());
+}
+
 const inferredCorsOrigins = [
   appBaseUrl,
   process.env.INTEGRATION_CALLBACK_BASE,
@@ -94,10 +99,13 @@ redirectUri: process.env.LI_REDIRECT_URI || '',
  scope: process.env.LI_SCOPE || 'openid profile email w_member_social'
 },
 instagram: {
+enabled: parseBoolean(process.env.ENABLE_INSTAGRAM_INTEGRATION, false),
 authUrl: process.env.IG_AUTH_URL || '',
 clientId: process.env.IG_CLIENT_ID || '',
+clientSecret: process.env.IG_CLIENT_SECRET || '',
 redirectUri: process.env.IG_REDIRECT_URI || '',
-scope: process.env.IG_SCOPE || ''
+scope: process.env.IG_SCOPE || '',
+graphVersion: process.env.IG_GRAPH_VERSION || 'v21.0'
 }
 },
 assets: {

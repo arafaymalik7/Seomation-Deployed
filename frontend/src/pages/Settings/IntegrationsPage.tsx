@@ -5,6 +5,7 @@ import { IntegrationsAPI } from '@/api/integrations';
 import type { IntegrationPlatform, PlatformIntegration } from '@/types';
 import { extractErrorMessage } from '@/utils/error';
 import { Button } from '@/components/ui/Button';
+import { isPublishingPlatformEnabled } from '@/config/features';
 import './integrations.css';
 
 const providers: { label: string; value: IntegrationPlatform; description: string }[] = [
@@ -12,6 +13,8 @@ const providers: { label: string; value: IntegrationPlatform; description: strin
   { label: 'LinkedIn', value: 'LINKEDIN', description: 'Share posts to your LinkedIn feed.' },
   { label: 'Instagram', value: 'INSTAGRAM', description: 'Publish images and captions.' }
 ];
+
+const enabledProviders = providers.filter((provider) => isPublishingPlatformEnabled(provider.value));
 
 function readRecord(value: unknown): Record<string, unknown> | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
@@ -141,7 +144,7 @@ export function IntegrationsPage() {
     setError(null);
     try {
       const { data } = await IntegrationsAPI.list();
-      setItems(data.items);
+      setItems(data.items.filter((item) => isPublishingPlatformEnabled(item.platform)));
     } catch (err) {
       setError(extractErrorMessage(err, 'Unable to load integrations.'));
     } finally {
@@ -227,7 +230,7 @@ export function IntegrationsPage() {
       {error && <div className="integrations-error glass-card">{error}</div>}
 
       <div className="integrations-grid">
-        {providers.map((provider) => {
+        {enabledProviders.map((provider) => {
           const connected = items.find((item) => item.platform === provider.value);
           return (
             <article key={provider.value} className="integration-card glass-card">

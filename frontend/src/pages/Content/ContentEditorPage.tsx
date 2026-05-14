@@ -23,6 +23,7 @@ import { extractErrorMessage } from '@/utils/error';
 import { IMAGE_PROMPT_MAX_LENGTH, LINKEDIN_POST_MAX_LENGTH } from '@/utils/inputLimits';
 import { IMAGE_STYLE_OPTIONS, normalizeImageStyle, type ImageStylePreset } from '@/utils/imageStyles';
 import { getTextSurfaceProps } from '@/utils/languagePresentation';
+import { isPublishingPlatformEnabled } from '@/config/features';
 import {
   formatDateTimeLocalMin,
   formatScheduledDateTime,
@@ -61,8 +62,8 @@ const roleLabel: Record<string, string> = {
   instagram_main: 'Square'
 };
 
-const publishImageTargets: {
-  key: 'WORDPRESS' | 'LINKEDIN' | 'INSTAGRAM';
+const allPublishImageTargets: {
+  key: IntegrationPlatform;
   label: string;
   description: string;
 }[] = [
@@ -71,11 +72,19 @@ const publishImageTargets: {
   { key: 'INSTAGRAM', label: 'Instagram', description: 'Feed image' }
 ];
 
-const platformOptions: { label: string; value: IntegrationPlatform }[] = [
+const publishImageTargets = allPublishImageTargets.filter((target) =>
+  isPublishingPlatformEnabled(target.key)
+);
+
+const allPlatformOptions: { label: string; value: IntegrationPlatform }[] = [
   { label: 'WordPress', value: 'WORDPRESS' },
   { label: 'LinkedIn', value: 'LINKEDIN' },
   { label: 'Instagram', value: 'INSTAGRAM' }
 ];
+
+const platformOptions = allPlatformOptions.filter((option) =>
+  isPublishingPlatformEnabled(option.value)
+);
 
 function formatPlatformLabel(platform: IntegrationPlatform) {
   if (platform === 'WORDPRESS') return 'WordPress';
@@ -268,10 +277,16 @@ export function ContentEditorPage() {
   const loadIntegrations = async () => {
     try {
       const { data } = await IntegrationsAPI.list();
-      setIntegrations(data.items);
-      if (data.items.length && !selectedIntegrationId) {
-        setSelectedIntegrationId(data.items[0].id);
-        setSelectedPlatform(data.items[0].platform);
+      const enabledItems = data.items.filter((item) => isPublishingPlatformEnabled(item.platform));
+      setIntegrations(enabledItems);
+      const selectedStillAvailable = enabledItems.some((item) => item.id === selectedIntegrationId);
+      if (enabledItems.length && !selectedStillAvailable) {
+        const nextIntegration = enabledItems[0];
+        setSelectedIntegrationId(nextIntegration.id);
+        setSelectedPlatform(nextIntegration.platform);
+      } else if (!enabledItems.length) {
+        setSelectedIntegrationId('');
+        setSelectedPlatform('WORDPRESS');
       }
     } catch (err) {
       console.warn('Failed to load integrations:', err);

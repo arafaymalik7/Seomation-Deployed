@@ -3,6 +3,7 @@ import { prisma } from '../lib/prisma.js';
 import { sanitizeIntegrationSecrets } from './integration-token.service.js';
 import { formatUtcInTimeZone, isValidTimeZone, zonedLocalDateTimeToUtc } from '../utils/datetime.js';
 import { sanitizeContentRecord } from '../utils/html-content.js';
+import { assertIntegrationPlatformEnabled } from '../utils/integration-features.js';
 
 const SUPPORTED = ['WORDPRESS', 'LINKEDIN', 'INSTAGRAM'];
 
@@ -51,6 +52,7 @@ export const ScheduleService = {
     const content = await ownedContent(contentId, userId);
     const integration = await ownedIntegration(integrationId, userId);
     const normalizedPlatform = normalizePlatform(platform || integration.platform);
+    assertIntegrationPlatformEnabled(normalizedPlatform);
     if (normalizedPlatform === 'WORDPRESS' && !((integration.metadata || {}).siteUrl || (integration.metadata || {}).siteId)) {
       throw new ApiError(400, 'WordPress site is not selected. Reconnect and pick a site.');
     }

@@ -5,6 +5,7 @@ import {
   encryptIntegrationToken,
   prepareIntegrationForUse
 } from './integration-token.service.js';
+import { refreshInstagramToken } from './instagram-oauth.service.js';
 
 const REFRESH_WINDOW_MS = 24 * 60 * 60 * 1000;
 
@@ -107,6 +108,13 @@ async function refreshLinkedInIntegration(integration) {
 }
 
 async function refreshInstagramIntegration(integration) {
+  if (integration.metadata?.tokenProvider === 'facebook' || integration.metadata?.instagramBusinessId) {
+    const refreshed = await refreshInstagramToken(integration, config.integrations?.instagram || {});
+    if (refreshed) {
+      return persistIntegrationTokenUpdate(integration, refreshed);
+    }
+  }
+
   if (!integration.accessToken) {
     return null;
   }

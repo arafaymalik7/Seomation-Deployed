@@ -1,6 +1,9 @@
 import { prisma } from '../lib/prisma.js';
 import logger from '../lib/logger.js';
+import { config } from '../config/index.js';
 import { prepareIntegrationForPublish } from './integration-auth.service.js';
+import { normalizeInstagramGraphVersion } from './instagram-oauth.service.js';
+import { assertIntegrationPlatformEnabled } from '../utils/integration-features.js';
 import { sanitizeContentHtml } from '../utils/html-content.js';
 import { LINKEDIN_POST_MAX_LENGTH } from '../constants/input-limits.js';
 
@@ -364,10 +367,15 @@ function isPublicInstagramImageUrl(imageUrl) {
   return isReachablePublicUrl(imageUrl);
 }
 
+function getInstagramGraphVersion() {
+  return normalizeInstagramGraphVersion(config.integrations?.instagram?.graphVersion);
+}
+
 async function waitForInstagramContainer(containerId, accessToken) {
+  const graphVersion = getInstagramGraphVersion();
   for (let attempt = 0; attempt < 10; attempt += 1) {
     const statusResp = await fetch(
-      `https://graph.facebook.com/v21.0/${containerId}?fields=status_code,status&access_token=${encodeURIComponent(accessToken)}`
+      `https://graph.facebook.com/${graphVersion}/${containerId}?fields=status_code,status&access_token=${encodeURIComponent(accessToken)}`
     );
     if (!statusResp.ok) {
       const txt = await statusResp.text();
@@ -391,6 +399,7 @@ async function waitForInstagramContainer(containerId, accessToken) {
 }
 
 async function publishInstagram(content, integration, media) {
+  assertIntegrationPlatformEnabled('INSTAGRAM');
   let imageUrl = await fetchImageUrl(content.id, media?.instagram, { requirePublic: true });
   if (!imageUrl) imageUrl = await fetchFirstImage(content.id, { requirePublic: true });
   if (!imageUrl) {
@@ -419,8 +428,9 @@ async function publishInstagram(content, integration, media) {
 
   const socialText = content.aiMeta?.social?.instagram?.text;
   const caption = socialText || content.text || stripTags(content.html || '');
-  const createUrl = `https://graph.facebook.com/v21.0/${igUserId}/media`;
-  const publishUrl = `https://graph.facebook.com/v21.0/${igUserId}/media_publish`;
+  const graphVersion = getInstagramGraphVersion();
+  const createUrl = `https://graph.facebook.com/${graphVersion}/${igUserId}/media`;
+  const publishUrl = `https://graph.facebook.com/${graphVersion}/${igUserId}/media_publish`;
 
   const createResp = await fetch(createUrl, {
     method: 'POST',

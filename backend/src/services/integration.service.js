@@ -8,6 +8,11 @@ import {
   encryptIntegrationToken,
   sanitizeIntegrationSecrets
 } from './integration-token.service.js';
+import { exchangeInstagramToken, resolveInstagramAuthUrl } from './instagram-oauth.service.js';
+import {
+  assertIntegrationPlatformEnabled,
+  isIntegrationPlatformEnabled
+} from '../utils/integration-features.js';
 
 const PLATFORMS = ['WORDPRESS', 'LINKEDIN', 'INSTAGRAM'];
 
@@ -261,7 +266,7 @@ function summarizeIntegration(integration) {
 export const IntegrationService = {
   async list(userId) {
     const items = await prisma.platformIntegration.findMany({ where: { userId } });
-    return items.map(sanitizeIntegration);
+    return items.filter((item) => isIntegrationPlatformEnabled(item.platform)).map(sanitizeIntegration);
   },
 
   async delete(userId, platform) {
@@ -290,13 +295,16 @@ export const IntegrationService = {
   buildAuthUrl(userId, platform, clientOrigin) {
     ensureTokenProtectionConfigured();
     const normalized = normalizePlatform(platform);
+    assertIntegrationPlatformEnabled(normalized);
     const state = buildState(userId, normalized, clientOrigin);
     const conf = getIntegrationConfig(normalized);
     const baseAuth =
       conf.authUrl ||
       (normalized === 'LINKEDIN'
         ? 'https://www.linkedin.com/oauth/v2/authorization'
-        : `https://auth.example.com/${normalized.toLowerCase()}`);
+        : normalized === 'INSTAGRAM'
+          ? resolveInstagramAuthUrl(conf)
+          : `https://auth.example.com/${normalized.toLowerCase()}`);
     const redirect =
       conf.redirectUri ||
       `${config.integrations?.callbackBase || ''}/api/integrations/${normalized.toLowerCase()}/callback`;
@@ -318,8 +326,10 @@ export const IntegrationService = {
   async handleCallback(userId, platform, payload) {
     const normalized = normalizePlatform(platform);
     ensureTokenProtectionConfigured();
+    assertIntegrationPlatformEnabled(normalized);
     if (payload.error) {
-      throw new ApiError(400, `OAuth error: ${payload.error}`);
+      const detail = payload.error_description ? `: ${payload.error_description}` : '';
+      throw new ApiError(400, `OAuth error: ${payload.error}${detail}`);
     }
     const code = payload.code || payload.token;
     if (!code) throw new ApiError(400, 'Missing code');
@@ -357,6 +367,17 @@ export const IntegrationService = {
           metadata = { ...(metadata || {}), profile: profile.raw || null };
         }
       }
+    }
+
+    if (normalized === 'INSTAGRAM' && payload.code) {
+      const exchanged = await exchangeInstagramToken(payload.code, conf, redirect);
+      accessToken = exchanged.accessToken;
+      refreshToken = exchanged.refreshToken || refreshToken;
+      expiresAt = exchanged.expiresAt;
+      metadata = {
+        ...(metadata || {}),
+        ...exchanged.metadata
+      };
     }
 
     if (normalized === 'WORDPRESS') {
